@@ -22,7 +22,7 @@ function varargout = verify(varargin)
 
 % Edit the above text to modify the response to help verify
 
-% Last Modified by GUIDE v2.5 09-Apr-2017 22:40:00
+% Last Modified by GUIDE v2.5 09-Apr-2017 03:49:25
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -128,7 +128,6 @@ else
    fclose(fileid);
 end
 
-%==================================================
 %anchor pos
 filename = src_anchor_pos(index).name;
 filepath = fullfile(handles.input_folder_name, filename);
@@ -142,8 +141,6 @@ main_rect_pos(1, :) = [pos(1, 1) pos(1, 2) pos(5, 1)-pos(1, 1) pos(2, 2)-pos(1, 
 main_rect_pos(2, :) = [pos(2, 1) pos(2, 2) pos(6, 1)-pos(2, 1) pos(3, 2)-pos(2, 2)];
 main_rect_pos(3, :) = [pos(3, 1) pos(3, 2) pos(7, 1)-pos(3, 1) pos(4, 2)-pos(3, 2)];
 handles.main_rect_pos = main_rect_pos;
-%====================================================
-
 
 %initialize some gui objects
 handles.src_im = src_im;
@@ -170,9 +167,10 @@ handles.current_im = im;
 
 %plot to main_axes
 h = imshow(im, 'Parent', handles.main_axes);
+set(h, 'ButtonDownFcn', {@setFocus, handles, 0, 1});
 
 %plot to section_axes
-imagesc(im, 'Parent', handles.section_axes);
+imshow(im, 'Parent', handles.section_axes);
 
 %update info displayed on the gui
 set(handles.imfilename_label, 'String', handles.src_im(index).name);
@@ -183,24 +181,31 @@ set(handles.counter_label, 'String', counter);
 setDraggables(hObject, handles);
 handles = guidata(hObject);
 
-%set callbacks
-set(h, 'ButtonDownFcn', {@setFocus, handles, 0, 1});
-
 %increment the current file position
 guidata(hObject, handles);
 
 function setDraggables(hObject, handles)
+%read the file
+filename = handles.src_anchor_pos(handles.fileindex_current).name;
+filepath = fullfile(handles.input_folder_name, filename);
+set(handles.posfilename_label, 'String', filename);
+
 %center points of the anchors
-pos = handles.main_rect_pos(1, :);
+pos = pointsFromFile(filepath);
+
+%compute coordinates
+main_rect_pos(1, :) = [pos(1, 1) pos(1, 2) pos(5, 1)-pos(1, 1) pos(2, 2)-pos(1, 2)];
+main_rect_pos(2, :) = [pos(2, 1) pos(2, 2) pos(6, 1)-pos(2, 1) pos(3, 2)-pos(2, 2)];
+main_rect_pos(3, :) = [pos(3, 1) pos(3, 2) pos(7, 1)-pos(3, 1) pos(4, 2)-pos(3, 2)];
 
 %set the position of the draggables on the main image
 axes(handles.main_axes);
-handles.main_rect = rectangle('Position',pos, 'EdgeColor','r');
+handles.main_rect = rectangle('Position',main_rec_pos(1, :), 'EdgeColor','r');
 
 %set the position of the draggables on the section_view
 axes(handles.section_axes);
-xlim([pos(1) pos(3)+pos(1)-450]);
-ylim([pos(2) pos(2)+pos(4)-100]);
+xlim([pos(1, 1), pos(5, 1)]);
+ylim([pos(1, 2), pos(2, 2)]);
 
 % Update handles structure
 guidata(hObject, handles);
@@ -217,19 +222,19 @@ found = 0;
 
 if index
    idx = handles.current_section_index;
-   pos = handles.main_rect_pos(idx, :);
+   pos = handles.main_rect_pos(idx);
    found = 1;
 elseif position
     %get the current position
     points = get(gca, 'CurrentPoint');
     
     %get it's index
-    x = points(1, 1);
-    y = points(1, 2);
+    x = points(1);
+    y = points(2);
     for t=1:3
-       pos = handles.main_rect_pos(t, :);
+       pos = handles.main_rect_pos(t);
        %if points is in main_rect_pos
-       if x >= pos(1) && x <= pos(1)+pos(3) && y >= pos(2) && y <= pos(2)+pos(4)
+       if x >= pos(t, 1) && x <= pos(t, 1)+pos(t, 3) && y >= pos(t, 2) && y <= pos(t, 2)+pos(t, 4)
            found = 1;
            break;
        end
@@ -242,9 +247,9 @@ end
 
 %update gui
 handles.main_rect.Position = pos;
-axes(handles.section_axes);
-xlim([pos(1) pos(3)+pos(1)-450]);
-ylim([pos(2) pos(2)+pos(4)]-100);
+handles.Section_axes.xlim = [pos(1) pos(3)-pos(1)];
+handles.Section_axes.lim = [pos(2) pos(2)-pos(4)];
+
 
 % Update handles structure
 guidata(hObject, handles);
