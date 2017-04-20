@@ -22,7 +22,7 @@ function varargout = verify(varargin)
 
 % Edit the above text to modify the response to help verify
 
-% Last Modified by GUIDE v2.5 15-Apr-2017 23:02:33
+% Last Modified by GUIDE v2.5 20-Apr-2017 22:58:30
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -140,6 +140,10 @@ else
    fclose(fileid);
 end
 
+if isnan(index)
+    index = 1;
+end
+
 %initialize some gui objects
 handles.src_im = src_im;
 handles.src_anchor_pos = src_anchor_pos;
@@ -151,6 +155,7 @@ handles.isEnter = 0;
 setView(hObject, handles);
 handles = guidata(hObject);
 set(handles.savebtn, 'Enable', 'on');
+set(handles.goto, 'Enable', 'on');
 set(gcf,'KeyPressFcn',@keypressed_callback);
 
 guidata(hObject, handles);
@@ -371,15 +376,25 @@ switch eventdata.Key
         else
             idx = 1;
         end
-        savePosition(hObject, handles);
-        handles.file_index = idx;
-        %save fileindex
-        fileid = fopen(fullfile(handles.input_folder_name, 'config.txt'), 'w');
-        fprintf(fileid, '%d', idx);
-        fclose(fileid);
-        setView(hObject, handles);
-        
+        jumpto(hObject, handles, idx);
+     case 'n'
+        idx = handles.file_index;
+        if idx >= handles.file_index_max
+            idx = handles.file_index_max;
+        else
+            idx = idx+1;
+        end
+        jumpto(hObject, handles, idx);  
 end
+
+function jumpto(hObject, handles, idx)
+savePosition(hObject, handles);
+handles.file_index = idx;
+%save fileindex
+fileid = fopen(fullfile(handles.input_folder_name, 'config.txt'), 'w');
+fprintf(fileid, '%d', idx);
+fclose(fileid);
+setView(hObject, handles);
   
 function position = points2rect(points)
 points(1, [1 2]) = points(1, [1 2]) - 0.5;
@@ -440,7 +455,7 @@ set(gcf,'WindowButtonUpFcn',{@wbu, idx, layer})
 handles = guidata(hObject);
 guidata(hObject, handles);
 
-%on mouse move
+%on mouse moved
 function wbm(hObject,evd, x, y, rect)
 % executes while the mouse moves
 points = get(gca, 'CurrentPoint');
@@ -463,6 +478,7 @@ end
 
 rect.Position = [points abs(x-points(1)) abs(y-points(2))];
 
+%on mouse released
 function wbu(hObject,evd, idx, layer)
 handles = guidata(hObject);
 % executes when the mouse button is released
@@ -484,3 +500,36 @@ guidata(hObject, handles);
 function [x, y]  = swap(x1, y1)
 x = y1;
 y = x1;
+
+% --- Executes during object creation, after setting all properties.
+function pagenum_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to pagenum (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+% --- Executes on button press in goto.
+function goto_Callback(hObject, eventdata)
+% hObject    handle to goto (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles structure with handles and user data (see GUIDATA)
+handles = guidata(hObject);
+
+idx = get(handles.pagenum, 'String');
+idx = str2double(idx);
+if isnan(idx)
+   idx=1; 
+end
+
+idx = round(idx);
+if idx < 1
+    idx = 1;
+elseif idx > handles.file_index_max
+    idx = handles.file_index_max;
+end
+jumpto(hObject, handles, idx);
