@@ -22,7 +22,7 @@ function varargout = verify(varargin)
 
 % Edit the above text to modify the response to help verify
 
-% Last Modified by GUIDE v2.5 20-Apr-2017 22:58:30
+% Last Modified by GUIDE v2.5 22-Apr-2017 14:47:17
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -184,7 +184,7 @@ axes(handles.main_axes);
 handles.main_rect = rectangle('Position',main_rect_pos(1,:), 'EdgeColor','r');
 
 %plot to section_axes
-h_section = imagesc(im, 'Parent', handles.section_axes);
+handles.h_section = imagesc(im, 'Parent', handles.section_axes);
 axes(handles.section_axes);
 section_pos = main_rect_pos(1, :); %first rectangle on the main axes
 xlim([section_pos(1) section_pos(3)+section_pos(1)-450]);
@@ -199,7 +199,7 @@ position = points2rect(char_pos(1,:,1));
 handles.char_rect = rectangle('Position',position, 'EdgeColor','b');
 
 %plot to char_axes
-h_char = imagesc(im, 'Parent', handles.char_axes);
+handles.h_char = imagesc(im, 'Parent', handles.char_axes);
 axes(handles.char_axes);
 posc = char_pos(1,:,char_index); % 1rst row, all col, 1rst layer
 xlim([posc(1)-5 posc(3)+5]);
@@ -221,8 +221,8 @@ handles.current_im = im;
 handles.char_index = char_index;
 
 %set callbacks
-set(h_char, 'ButtonDownFcn',@adjustBox);
-set(h_section, 'ButtonDownFcn',@section_axis_callback);
+set(handles.h_char, 'ButtonDownFcn',@adjustBox);
+set(handles.h_section, 'ButtonDownFcn',@section_axis_callback);
 
 guidata(hObject, handles);
 
@@ -385,6 +385,15 @@ switch eventdata.Key
             idx = idx+1;
         end
         jumpto(hObject, handles, idx);  
+    case 'e'
+        erase(hObject);
+    case 'h'
+        name = handles.src_im(handles.file_index).name;
+        name = name(1:end-4);
+        name = strcat(name, '_', num2str(handles.char_index), '.png');
+        imfname = fullfile(handles.input_folder_name, 'error', name);
+        saveas(gcf, imfname);
+        msgbox('Operation Completed','Success', 'modal');
 end
 
 function jumpto(hObject, handles, idx)
@@ -491,8 +500,6 @@ handles.char_pos(idx,:,layer) = temp;
 handles.char_rect.Position = char_pos;
 handles.sect_rects(idx).Position = char_pos;
 
-% setBox(handles.char_rect, handles.char_rect_focus, char_pos);
-
 set(gcf,'WindowButtonMotionFcn','')
 set(gcf,'WindowButtonUpFcn','') 
 guidata(hObject, handles);
@@ -533,3 +540,81 @@ elseif idx > handles.file_index_max
     idx = handles.file_index_max;
 end
 jumpto(hObject, handles, idx);
+
+function erase(hObject)
+handles = guidata(hObject);
+imfname = fullfile(handles.input_folder_name, handles.src_im(handles.file_index).name);
+
+figure;
+handles.h_im = imshow(handles.h_char.CData);
+
+%get and apply the xylimit from handles.char_axis to the ca
+ax = ancestor(handles.h_im, 'axes');
+ax.XLim = handles.char_axes.XLim;
+ax.YLim = handles.char_axes.YLim;
+
+rect = rectangle('Position', [0 0 0 0]);
+setappdata(gcf, 'handles', handles);
+
+%set callback on the figure
+set(gcf,'WindowButtonDownFcn',{@erase_wbd, rect, imfname});
+set(gcf,'CloseRequestFcn',{@erase_close});
+
+%erase_wbd function
+function erase_wbd(hObject, eventdata, rect, imfname)
+points = get(gca, 'CurrentPoint');
+points = [points(1, 1), points(1, 2)];
+
+x=round(points(1));
+y=round(points(2));
+
+set(gcf,'WindowButtonMotionFcn',{@erase_wbm, x, y, rect})
+set(gcf,'WindowButtonUpFcn',{@erase_wbu, rect, imfname})
+
+%erase_wbm function
+function erase_wbm(h,evd, x, y, rect)
+% executes while the mouse moves
+points = get(gca, 'CurrentPoint');
+points = [points(1, 1), points(1, 2)];
+points = round(points);
+
+if points(1) > x && points(2) > y
+    [points(1), x] = swap(points(1), x);
+    [points(2), y] = swap(points(2), y);
+elseif points(2) > y
+    [points(2), y] = swap(points(2), y);
+elseif points(1) > x
+    [points(1), x] = swap(points(1), x);
+end
+
+points = points-0.5;
+x = x + 0.5;
+y= y + 0.5;
+
+rect.Position = [points abs(x-points(1)) abs(y-points(2))];
+
+%erase_wbu function
+function erase_wbu(hObject,evd, rect, imfname)
+% executes when the mouse button is released
+handles = getappdata(gcf, 'handles');
+
+pos = rect.Position;
+x1 = pos(1)+0.5;
+y1 = pos(2)+0.5;
+x2 = x1 + pos(3)-1;
+y2 = y1 + pos(4)-1;
+handles.current_im(y1:y2, x1:x2) = 1;
+
+handles.h_im.CData = handles.current_im;
+handles.h_char.CData = handles.current_im;
+handles.h_section.CData = handles.current_im;
+
+imwrite(handles.current_im, imfname);
+set(gcf,'WindowButtonMotionFcn','')
+set(gcf,'WindowButtonUpFcn','')
+setappdata(gcf, 'handles', handles);
+
+function erase_close(hObject,evd)
+handles = getappdata(gcf, 'handles');
+delete(gcf);
+guidata(verify, handles);
